@@ -1,0 +1,81 @@
+var username = "email@gmail.com";
+var password = "1password";
+var myworkspace = 9999;//you can get this from your original authenticateToggl call
+
+
+function authenticateToggl()  //curl -v -u john.doe@gmail.com:secret -X GET https://api.track.toggl.com/api/v8/me
+{ 
+  var url = "https://api.track.toggl.com/api/v8/me";
+  var options =
+  {
+      'method'     : 'get',    
+      'headers'    : {"Authorization": 'Basic ' + Utilities.base64Encode(`${username}:${password}`)},     
+  };
+
+  var response = UrlFetchApp.fetch(url, options);
+  var strResponse = response.getContentText();
+  console.log('Get Plan Response: ' + strResponse); 
+  var parsedData = JSON.parse(strResponse); 
+  var strId = parsedData.data.api_token;
+  return strId;
+}
+
+function getProjectIds(){  //GET https://api.track.toggl.com/api/v8/workspaces/{workspace_id}/projects 
+  var responseGetPlan = UrlFetchApp.fetch(`https://api.track.toggl.com/api/v8/workspaces/${myworkspace}}/projects`, {//
+    'headers': {"Authorization": 'Basic ' + Utilities.base64Encode(`${username}:${password}`)},   
+    'method':'get'
+  });
+  var projects = responseGetPlan.getContentText();
+  p = JSON.parse(projects);
+  console.log(p.length)
+  var result = [["Id","Project"]];
+  for (var i=0; i<p.length;i++)
+  {
+    result.push([p[i].id,p[i].name]);
+  }
+  var sh = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = sh.getSheetByName("TogglReference");
+  ss.getRange(1, 1,result.length, result[0].length).setValues(result);
+}
+
+function startTimer(project){  //POST https://api.track.toggl.com/api/v8/time_entries/start
+    project = 123;//you get this from the project list returned by getProjectIds
+    stopCurrentTimer();
+    var payload = {"time_entry":{"description":"I'm rocking the CURL to GAS","tags":["auto"],"pid":project,"created_with":"gas"}}
+    //console.info(payload);
+    var responseGetPlan = UrlFetchApp.fetch(`https://api.track.toggl.com/api/v8/time_entries/start`, {//
+    'headers': {"Authorization": 'Basic ' + Utilities.base64Encode(`${username}:${password}`)},   
+    'method':'post',
+    "payload": JSON.stringify(payload),
+    "contentType" : "application/json"
+  });
+  var projects = responseGetPlan.getContentText();
+  console.log("Current Timer Started: ",JSON.parse(projects).data.description)
+
+}
+
+function getTimer(){  //curl -v -u c8f4c3be51c121ac9cbcbe5a580bfeab:api_token -X GET https://api.track.toggl.com/api/v8/time_entries/current
+    var responseGetPlan = UrlFetchApp.fetch('https://api.track.toggl.com/api/v8/time_entries/current', {//
+    'headers': {"Authorization": 'Basic ' + Utilities.base64Encode(`${username}:${password}`)},   
+    'method':'get'
+  });
+  var projects = responseGetPlan.getContentText();
+  var p = JSON.parse(projects);
+  if (p.data == null) return -1
+  return p.data.id;
+}
+
+function stopCurrentTimer(){  //curl -v -u 1971800d4d82861d8f2c1651fea4d212:api_token	-H "Content-Type: application/json"	-X PUT https://api.track.toggl.com/api/v8/time_entries/436694100/stop
+  var time_entry_id = getTimer();
+  if (time_entry_id==-1){
+    console.error("There is no timer running.");
+    return;
+  }
+  var responseGetPlan = UrlFetchApp.fetch(`https://api.track.toggl.com/api/v8/time_entries/${time_entry_id}/stop`, {//
+    'headers': {"Authorization": 'Basic ' + Utilities.base64Encode(`${username}:${password}`)},   
+    'method':'put'
+  });
+  var projects = responseGetPlan.getContentText();
+    console.log("Current Timer Stopped: ",JSON.parse(projects).data.description)
+}
+
